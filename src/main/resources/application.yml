@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: policy-qna-rag
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/policy_qna
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data-ontology-dev-standard.sql
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o
+          temperature: 0.3
+      embedding:
+        options:
+          model: text-embedding-3-small
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 1536
+
+# 문서 처리 설정
+document:
+  upload-path: ${DOCUMENT_UPLOAD_PATH:./uploads}
+  chunk-size: 1000
+  chunk-overlap: 200
+  supported-types:
+    - application/pdf
+    - application/msword
+    - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    - application/x-hwp
+    - application/haansofthwp
+
+# RAG 설정
+rag:
+  top-k: 5
+  similarity-threshold: 0.7
+  use-ontology-boost: true
+  ontology-boost-weight: 0.3
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.company.policyqna: DEBUG
+    org.springframework.ai: DEBUG
