@@ -25,20 +25,19 @@ spring:
       data-locations: classpath:data-ontology-dev-standard.sql
 
   ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
+    ollama:
+      base-url: http://localhost:11434
       chat:
+        model: llama3.2:3b
         options:
-          model: gpt-4o
           temperature: 0.3
       embedding:
-        options:
-          model: text-embedding-3-small
+        model: nomic-embed-text
     vectorstore:
       pgvector:
         index-type: HNSW
         distance-type: COSINE_DISTANCE
-        dimensions: 1536
+        dimensions: 768
 
 # 문서 처리 설정
 document:

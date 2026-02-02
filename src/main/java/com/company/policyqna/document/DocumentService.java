@@ -71,7 +71,8 @@ public class DocumentService {
         List<DocumentChunk> chunks = documentParser.createChunks(document, parsed.getContent());
 
         // 4. 청크 저장
-        chunks.forEach(chunk -> chunk.setDocument(document));
+        final PolicyDocument finalDocument = document;
+        chunks.forEach(chunk -> chunk.setDocument(finalDocument));
         chunkRepository.saveAll(chunks);
 
         // 5. 벡터 스토어에 인덱싱
@@ -102,7 +103,8 @@ public class DocumentService {
         DocumentParser.ParsedDocument parsed = documentParser.parseFile(filePath);
         List<DocumentChunk> chunks = documentParser.createChunks(document, parsed.getContent());
 
-        chunks.forEach(chunk -> chunk.setDocument(document));
+        final PolicyDocument finalDocument = document;
+        chunks.forEach(chunk -> chunk.setDocument(finalDocument));
         chunkRepository.saveAll(chunks);
         vectorStoreService.indexChunks(chunks);
 

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # PostgreSQL + pgvector (문서 저장 + 벡터 검색)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: policy-qna-db
+    environment:
+      POSTGRES_DB: policy_qna
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama (무료 로컬 AI)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: policy-qna-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # GPU 사용시 아래 주석 해제
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  postgres_data:
+  ollama_data:

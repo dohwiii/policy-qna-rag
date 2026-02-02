@@ -57,11 +57,9 @@ public class VectorStoreService {
      * 유사도 검색
      */
     public List<SearchResult> search(String query, int topK) {
-        SearchRequest request = SearchRequest.builder()
-            .query(query)
-            .topK(topK > 0 ? topK : defaultTopK)
-            .similarityThreshold(similarityThreshold)
-            .build();
+        SearchRequest request = SearchRequest.query(query)
+            .withTopK(topK > 0 ? topK : defaultTopK)
+            .withSimilarityThreshold(similarityThreshold);
 
         List<Document> results = vectorStore.similaritySearch(request);
 
@@ -126,12 +124,10 @@ public class VectorStoreService {
             filterExpression.append(String.join(" && ", conditions));
         }
 
-        SearchRequest request = SearchRequest.builder()
-            .query(query)
-            .topK(topK)
-            .similarityThreshold(similarityThreshold)
-            .filterExpression(filterExpression.length() > 0 ? filterExpression.toString() : null)
-            .build();
+        SearchRequest request = SearchRequest.query(query)
+            .withTopK(topK)
+            .withSimilarityThreshold(similarityThreshold)
+            .withFilterExpression(filterExpression.length() > 0 ? filterExpression.toString() : null);
 
         List<Document> results = vectorStore.similaritySearch(request);
 
@@ -184,7 +180,7 @@ public class VectorStoreService {
 
         return SearchResult.builder()
             .chunkId(doc.getId())
-            .content(doc.getText())
+            .content(doc.getContent())
             .score(getScoreFromMetadata(metadata))
             .documentId(getLongFromMetadata(metadata, "documentId"))
             .documentTitle((String) metadata.get("documentTitle"))
