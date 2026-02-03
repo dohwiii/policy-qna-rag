@@ -151,22 +151,23 @@ public class VectorStoreService {
      */
     private Document toSpringAiDocument(DocumentChunk chunk) {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("chunkId", chunk.getId());
-        metadata.put("documentId", chunk.getDocument().getId());
+        // Store numeric IDs as strings to avoid UUID parsing issues in PgVectorStore
+        metadata.put("chunkId", String.valueOf(chunk.getId()));
+        metadata.put("documentId", String.valueOf(chunk.getDocument().getId()));
         metadata.put("documentTitle", chunk.getDocument().getTitle());
         metadata.put("documentCode", chunk.getDocument().getDocumentCode());
         metadata.put("documentType", chunk.getDocument().getDocumentType().name());
         metadata.put("department", chunk.getDocument().getDepartment());
         metadata.put("sectionTitle", chunk.getSectionTitle());
         metadata.put("articleNumber", chunk.getArticleNumber());
-        metadata.put("chunkIndex", chunk.getChunkIndex());
+        metadata.put("chunkIndex", String.valueOf(chunk.getChunkIndex()));
 
         if (chunk.getMetadata() != null) {
             metadata.putAll(chunk.getMetadata());
         }
 
         return new Document(
-            String.valueOf(chunk.getId()),
+            UUID.randomUUID().toString(),
             chunk.getContent(),
             metadata
         );
@@ -179,7 +180,7 @@ public class VectorStoreService {
         Map<String, Object> metadata = doc.getMetadata();
 
         return SearchResult.builder()
-            .chunkId(doc.getId())
+            .chunkId(String.valueOf(metadata.get("chunkId")))
             .content(doc.getContent())
             .score(getScoreFromMetadata(metadata))
             .documentId(getLongFromMetadata(metadata, "documentId"))

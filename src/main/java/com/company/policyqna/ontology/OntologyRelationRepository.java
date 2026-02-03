@@ -5,13 +5,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
-public interface OntologyRelationRepository extends JpaRepository<OntologyRelation, Long> {
+public interface OntologyRelationRepository extends JpaRepository<OntologyRelation, UUID> {
 
-    List<OntologyRelation> findBySourceConceptId(Long conceptId);
+    List<OntologyRelation> findBySourceConceptId(UUID conceptId);
 
-    List<OntologyRelation> findByTargetConceptId(Long conceptId);
+    List<OntologyRelation> findByTargetConceptId(UUID conceptId);
 
     List<OntologyRelation> findByRelationType(OntologyRelation.RelationType type);
 
@@ -19,21 +20,21 @@ public interface OntologyRelationRepository extends JpaRepository<OntologyRelati
         SELECT r FROM OntologyRelation r
         WHERE r.sourceConcept.id = :conceptId OR r.targetConcept.id = :conceptId
     """)
-    List<OntologyRelation> findAllRelationsForConcept(Long conceptId);
+    List<OntologyRelation> findAllRelationsForConcept(UUID conceptId);
 
     @Query("""
         SELECT r FROM OntologyRelation r
         WHERE r.relationType = :type
         AND (r.sourceConcept.id = :conceptId OR r.targetConcept.id = :conceptId)
     """)
-    List<OntologyRelation> findRelationsForConceptByType(Long conceptId, OntologyRelation.RelationType type);
+    List<OntologyRelation> findRelationsForConceptByType(UUID conceptId, OntologyRelation.RelationType type);
 
     @Query("""
         SELECT r FROM OntologyRelation r
         WHERE r.relationType = 'REFERENCES'
         AND r.sourceConcept.id = :conceptId
     """)
-    List<OntologyRelation> findReferencesFrom(Long conceptId);
+    List<OntologyRelation> findReferencesFrom(UUID conceptId);
 
     @Query("""
         SELECT r FROM OntologyRelation r

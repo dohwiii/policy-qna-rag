@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_article ON document_chunks(article_number)
 
 -- 온톨로지 개념 테이블
 CREATE TABLE IF NOT EXISTS ontology_concepts (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(200) NOT NULL,
     name_en VARCHAR(200),
     concept_type VARCHAR(50) NOT NULL,
@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_concept_type ON ontology_concepts(concept_type);
 
 -- 동의어 테이블
 CREATE TABLE IF NOT EXISTS concept_synonyms (
-    concept_id BIGINT NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
+    concept_id UUID NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
     synonym VARCHAR(200) NOT NULL
 );
 
@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_synonyms ON concept_synonyms(synonym);
 
 -- 약어 테이블
 CREATE TABLE IF NOT EXISTS concept_abbreviations (
-    concept_id BIGINT NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
+    concept_id UUID NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
     abbreviation VARCHAR(50) NOT NULL
 );
 
@@ -76,9 +76,9 @@ CREATE INDEX IF NOT EXISTS idx_abbreviations ON concept_abbreviations(abbreviati
 
 -- 온톨로지 관계 테이블
 CREATE TABLE IF NOT EXISTS ontology_relations (
-    id BIGSERIAL PRIMARY KEY,
-    source_concept_id BIGINT NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
-    target_concept_id BIGINT NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_concept_id UUID NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
+    target_concept_id UUID NOT NULL REFERENCES ontology_concepts(id) ON DELETE CASCADE,
     relation_type VARCHAR(50) NOT NULL,
     description TEXT,
     weight DOUBLE PRECISION DEFAULT 1.0,

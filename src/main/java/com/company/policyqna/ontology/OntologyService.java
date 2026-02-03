@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
+
 /**
  * 온톨로지 관리 서비스
  * - 개념, 관계, 규칙 관리
@@ -45,8 +46,8 @@ public class OntologyService {
 
     @Transactional
     public OntologyRelation createRelation(
-            Long sourceId,
-            Long targetId,
+            UUID sourceId,
+            UUID targetId,
             OntologyRelation.RelationType type,
             String description) {
 
@@ -202,11 +203,11 @@ public class OntologyService {
     /**
      * 개념 관계 그래프 조회
      */
-    public ConceptGraph getConceptGraph(Long conceptId, int depth) {
+    public ConceptGraph getConceptGraph(UUID conceptId, int depth) {
         OntologyConcept rootConcept = conceptRepository.findById(conceptId)
             .orElseThrow(() -> new IllegalArgumentException("Concept not found"));
 
-        Set<Long> visited = new HashSet<>();
+        Set<UUID> visited = new HashSet<>();
         List<OntologyConcept> concepts = new ArrayList<>();
         List<OntologyRelation> relations = new ArrayList<>();
 
@@ -222,7 +223,7 @@ public class OntologyService {
     private void traverseGraph(
             OntologyConcept concept,
             int depth,
-            Set<Long> visited,
+            Set<UUID> visited,
             List<OntologyConcept> concepts,
             List<OntologyRelation> relations) {
 

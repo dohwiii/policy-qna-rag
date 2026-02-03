@@ -7,6 +7,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
+import java.util.UUID;
 
 /**
  * 온톨로지 관계(Relation) 엔티티
@@ -26,8 +28,8 @@ import java.util.Map;
 public class OntologyRelation {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_concept_id", nullable = false)

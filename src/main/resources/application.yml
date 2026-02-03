@@ -2,6 +2,12 @@ spring:
   application:
     name: policy-qna-rag
 
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data-ontology-dev-standard.sql
+
   datasource:
     url: jdbc:postgresql://localhost:5432/policy_qna
     username: ${DB_USERNAME:postgres}
@@ -10,7 +16,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -18,11 +24,10 @@ spring:
         format_sql: true
     defer-datasource-initialization: true
 
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      data-locations: classpath:data-ontology-dev-standard.sql
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
   ai:
     ollama:
@@ -38,6 +43,7 @@ spring:
         index-type: HNSW
         distance-type: COSINE_DISTANCE
         dimensions: 768
+        initialize-schema: true
 
 # 문서 처리 설정
 document:
@@ -54,12 +60,17 @@ document:
 # RAG 설정
 rag:
   top-k: 5
-  similarity-threshold: 0.7
+  similarity-threshold: 0.3
   use-ontology-boost: true
   ontology-boost-weight: 0.3
 
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 logging:
   level:

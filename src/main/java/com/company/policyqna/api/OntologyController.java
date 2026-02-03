@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 온톨로지 관리 API 컨트롤러
@@ -72,7 +73,7 @@ public class OntologyController {
      * 개념 상세 조회 (관계 포함)
      */
     @GetMapping("/concepts/{id}")
-    public ResponseEntity<OntologyConcept> getConcept(@PathVariable Long id) {
+    public ResponseEntity<OntologyConcept> getConcept(@PathVariable UUID id) {
         return conceptRepository.findById(id)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
@@ -83,7 +84,7 @@ public class OntologyController {
      */
     @GetMapping("/concepts/{id}/graph")
     public ResponseEntity<ConceptGraph> getConceptGraph(
-            @PathVariable Long id,
+            @PathVariable UUID id,
             @RequestParam(defaultValue = "2") int depth) {
 
         return ResponseEntity.ok(ontologyService.getConceptGraph(id, depth));
@@ -109,7 +110,7 @@ public class OntologyController {
      * 개념의 관계 조회
      */
     @GetMapping("/concepts/{id}/relations")
-    public ResponseEntity<List<OntologyRelation>> getConceptRelations(@PathVariable Long id) {
+    public ResponseEntity<List<OntologyRelation>> getConceptRelations(@PathVariable UUID id) {
         return ResponseEntity.ok(relationRepository.findAllRelationsForConcept(id));
     }
 
@@ -196,8 +197,8 @@ public class OntologyController {
     ) {}
 
     public record RelationRequest(
-        Long sourceConceptId,
-        Long targetConceptId,
+        UUID sourceConceptId,
+        UUID targetConceptId,
         @NotBlank String relationType,
         String description
     ) {}
