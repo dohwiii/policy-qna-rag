@@ -24,6 +24,11 @@ spring:
         format_sql: true
     defer-datasource-initialization: true
 
+  mvc:
+    view:
+      prefix: /WEB-INF/views/
+      suffix: .jsp
+
   servlet:
     multipart:
       max-file-size: 10MB
@@ -71,6 +76,12 @@ server:
       charset: UTF-8
       enabled: true
       force: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  default-consumes-media-type: application/json
 
 logging:
   level:

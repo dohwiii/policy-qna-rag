@@ -15,18 +15,11 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * RAG 파이프라인 서비스
- * 1. 질문 분석 (온톨로지 활용)
- * 2. 검색어 확장
- * 3. 벡터 검색 + 키워드 검색
- * 4. 온톨로지 기반 재순위
- * 5. LLM 답변 생성
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -64,38 +57,25 @@ public class RagPipelineService {
         - 최신 정보는 담당 부서에 확인하도록 안내합니다.
         """;
 
+    // ==================== 공개 API ====================
+
     /**
-     * 질문에 대한 답변 생성
+     * 동기 답변 생성 (기존 /ask 엔드포인트용)
      */
     public QnaResponse processQuestion(String question) {
         log.info("Processing question: {}", question);
+        RagContext ctx = buildRagContext(question);
 
-        // 1. 리다이렉트 규칙 확인
-        Optional<RedirectResult> redirect = ontologyService.checkRedirect(question);
-        if (redirect.isPresent()) {
-            log.info("Redirect rule matched: {}", redirect.get().getRuleName());
-            // 리다이렉트된 참조로 직접 검색
-            return processWithRedirect(question, redirect.get());
-        }
-
-        // 2. 온톨로지 기반 쿼리 확장
-        QueryExpansion expansion = ontologyService.expandQuery(question);
-        log.debug("Query expanded: {} terms", expansion.getExpandedTerms().size());
-
-        // 3. 벡터 검색 수행
-        List<SearchResult> searchResults;
-        if (useOntologyBoost && !expansion.getExpandedTerms().isEmpty()) {
-            searchResults = vectorStoreService.searchWithExpansion(
-                expansion.getExpandedTerms(),
-                expansion.getTermWeights(),
-                topK
-            );
-        } else {
-            searchResults = vectorStoreService.search(question, topK);
-        }
-
-        // 4. 검색 결과가 없는 경우
-        if (searchResults.isEmpty()) {
+        if (ctx.noResults()) {
+            if (ctx.redirectInfo() != null) {
+                return QnaResponse.builder()
+                    .question(question)
+                    .answer("'" + ctx.redirectInfo().getTargetReference() + "'을(를) 참조하도록 설정되어 있으나, " +
+                            "해당 문서를 찾을 수 없습니다.")
+                    .sources(Collections.emptyList())
+                    .redirectInfo(ctx.redirectInfo())
+                    .build();
+            }
             return QnaResponse.builder()
                 .question(question)
                 .answer("죄송합니다. 질문과 관련된 정책이나 매뉴얼 정보를 찾을 수 없습니다. " +
@@ -105,63 +85,116 @@ public class RagPipelineService {
                 .build();
         }
 
+        String answer = generateAnswer(ctx.promptText());
+        return QnaResponse.builder()
+            .question(question)
+            .answer(answer)
+            .sources(ctx.sources())
+            .relatedTerms(ctx.relatedTerms())
+            .expandedTerms(ctx.expandedTerms())
+            .searchScores(ctx.searchScores())
+            .redirectInfo(ctx.redirectInfo())
+            .build();
+    }
+
+    /**
+     * RAG 파이프라인 1~6단계: LLM 호출을 제외한 모든 처리.
+     * sync/stream 양쪽에서 공유하는 메서드.
+     */
+    public RagContext buildRagContext(String question) {
+        // 1. 리다이렉트 규칙 확인
+        Optional<RedirectResult> redirect = ontologyService.checkRedirect(question);
+        if (redirect.isPresent()) {
+            RedirectResult redirectInfo = redirect.get();
+            log.info("Redirect rule matched: {}", redirectInfo.getRuleName());
+            List<SearchResult> results = vectorStoreService.search(redirectInfo.getTargetReference(), topK);
+            if (results.isEmpty()) {
+                return new RagContext(question, Collections.emptyList(), Collections.emptyList(),
+                    Collections.emptyList(), Collections.emptyMap(), redirectInfo, null, true);
+            }
+            String context = buildContext(results);
+            String promptText = buildPromptText(question, context, Collections.emptyList());
+            return new RagContext(question, extractSources(results), Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyMap(), redirectInfo, promptText, false);
+        }
+
+        // 2. 온톨로지 기반 쿼리 확장
+        QueryExpansion expansion = ontologyService.expandQuery(question);
+        log.debug("Query expanded: {} terms", expansion.getExpandedTerms().size());
+
+        // 3. 벡터 검색
+        List<SearchResult> searchResults;
+        if (useOntologyBoost && !expansion.getExpandedTerms().isEmpty()) {
+            searchResults = vectorStoreService.searchWithExpansion(
+                expansion.getExpandedTerms(), expansion.getTermWeights(), topK);
+        } else {
+            searchResults = vectorStoreService.search(question, topK);
+        }
+
+        // 4. 검색 결과 없음
+        if (searchResults.isEmpty()) {
+            return new RagContext(question, Collections.emptyList(), Collections.emptyList(),
+                expansion.getExpandedTerms(), Collections.emptyMap(), null, null, true);
+        }
+
         // 5. 컨텍스트 구성
         String context = buildContext(searchResults);
 
-        // 6. 관련 용어 정의 수집
+        // 6. 관련 용어 정의 수집 + 프롬프트 구성
         List<TermInfo> relatedTerms = extractRelatedTerms(question, expansion);
-
-        // 7. LLM 답변 생성
-        String answer = generateAnswer(question, context, relatedTerms);
-
-        // 8. 출처 정보 추출
+        String promptText = buildPromptText(question, context, relatedTerms);
         List<SourceInfo> sources = extractSources(searchResults);
+        Map<String, Double> scores = searchResults.stream()
+            .collect(Collectors.toMap(SearchResult::getChunkId, SearchResult::getScore));
 
-        return QnaResponse.builder()
-            .question(question)
-            .answer(answer)
-            .sources(sources)
-            .relatedTerms(relatedTerms)
-            .expandedTerms(expansion.getExpandedTerms())
-            .searchScores(searchResults.stream()
-                .collect(Collectors.toMap(
-                    SearchResult::getChunkId,
-                    SearchResult::getScore
-                )))
-            .build();
+        return new RagContext(question, sources, relatedTerms, expansion.getExpandedTerms(),
+            scores, null, promptText, false);
     }
 
     /**
-     * 리다이렉트된 질문 처리
+     * LLM 스트리밍 응답 (Flux<String>).
+     * buildRagContext()로 컨텍스트를 준비한 후 이 메서드로 스트리밍.
      */
-    private QnaResponse processWithRedirect(String question, RedirectResult redirect) {
-        // 리다이렉트 대상으로 직접 검색
-        List<SearchResult> results = vectorStoreService.search(redirect.getTargetReference(), topK);
+    public Flux<String> streamAnswer(RagContext ctx) {
+        List<Message> messages = List.of(
+            new SystemMessage(SYSTEM_PROMPT),
+            new UserMessage(ctx.promptText())
+        );
+        return chatClientBuilder.build()
+            .prompt(new Prompt(messages))
+            .stream()
+            .content();
+    }
 
-        if (results.isEmpty()) {
-            return QnaResponse.builder()
-                .question(question)
-                .answer("'" + redirect.getTargetReference() + "'을(를) 참조하도록 설정되어 있으나, " +
-                        "해당 문서를 찾을 수 없습니다.")
-                .sources(Collections.emptyList())
-                .redirectInfo(redirect)
-                .build();
+    // ==================== 내부 처리 메서드 ====================
+
+    private String generateAnswer(String promptText) {
+        ChatClient chatClient = chatClientBuilder.build();
+        List<Message> messages = List.of(
+            new SystemMessage(SYSTEM_PROMPT),
+            new UserMessage(promptText)
+        );
+        return chatClient.prompt(new Prompt(messages)).call().content();
+    }
+
+    private String buildPromptText(String question, String context, List<TermInfo> relatedTerms) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("## 질문\n").append(question).append("\n\n");
+        prompt.append("## 참조 문서\n").append(context).append("\n");
+
+        if (!relatedTerms.isEmpty()) {
+            prompt.append("## 관련 용어 정의\n");
+            for (TermInfo term : relatedTerms) {
+                prompt.append("- ").append(term.getTerm()).append(": ")
+                      .append(term.getDefinition()).append("\n");
+            }
+            prompt.append("\n");
         }
 
-        String context = buildContext(results);
-        String answer = generateAnswer(question, context, Collections.emptyList());
-
-        return QnaResponse.builder()
-            .question(question)
-            .answer(answer)
-            .sources(extractSources(results))
-            .redirectInfo(redirect)
-            .build();
+        prompt.append("위 문서를 참고하여 질문에 답변해 주세요.");
+        return prompt.toString();
     }
 
-    /**
-     * 검색 결과로 컨텍스트 구성
-     */
     private String buildContext(List<SearchResult> results) {
         StringBuilder context = new StringBuilder();
         context.append("=== 관련 문서 내용 ===\n\n");
@@ -176,9 +209,6 @@ public class RagPipelineService {
         return context.toString();
     }
 
-    /**
-     * 관련 용어 정의 추출
-     */
     private List<TermInfo> extractRelatedTerms(String question, QueryExpansion expansion) {
         List<TermInfo> terms = new ArrayList<>();
 
@@ -195,40 +225,6 @@ public class RagPipelineService {
         return terms;
     }
 
-    /**
-     * LLM을 통한 답변 생성
-     */
-    private String generateAnswer(String question, String context, List<TermInfo> relatedTerms) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("## 질문\n").append(question).append("\n\n");
-        prompt.append("## 참조 문서\n").append(context).append("\n");
-
-        if (!relatedTerms.isEmpty()) {
-            prompt.append("## 관련 용어 정의\n");
-            for (TermInfo term : relatedTerms) {
-                prompt.append("- ").append(term.getTerm()).append(": ")
-                      .append(term.getDefinition()).append("\n");
-            }
-            prompt.append("\n");
-        }
-
-        prompt.append("위 문서를 참고하여 질문에 답변해 주세요.");
-
-        ChatClient chatClient = chatClientBuilder.build();
-
-        List<Message> messages = List.of(
-            new SystemMessage(SYSTEM_PROMPT),
-            new UserMessage(prompt.toString())
-        );
-
-        return chatClient.prompt(new Prompt(messages))
-            .call()
-            .content();
-    }
-
-    /**
-     * 출처 정보 추출
-     */
     private List<SourceInfo> extractSources(List<SearchResult> results) {
         return results.stream()
             .map(r -> SourceInfo.builder()
@@ -249,7 +245,18 @@ public class RagPipelineService {
         return text.substring(0, maxLength) + "...";
     }
 
-    // ==================== 응답 DTO ====================
+    // ==================== DTO ====================
+
+    public record RagContext(
+        String question,
+        List<SourceInfo> sources,
+        List<TermInfo> relatedTerms,
+        List<String> expandedTerms,
+        Map<String, Double> searchScores,
+        RedirectResult redirectInfo,
+        String promptText,
+        boolean noResults
+    ) {}
 
     @lombok.Builder
     @lombok.Getter

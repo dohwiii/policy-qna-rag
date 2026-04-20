@@ -43,6 +43,6 @@ echo.
 echo ========================================
 echo   Ctrl+C 로 종료
 echo ========================================
-set JAVA_HOME="C:\Program Files\Common Files\Oracle\Java\javapath_target_12518937" && call mvnw spring-boot:run
+set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.18.8-hotspot && call mvnw spring-boot:run
 
 pause
